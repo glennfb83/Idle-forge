@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Idle Forge — Simple Clicker</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="game">
+    <header>
+      <h1>Idle Forge</h1>
+      <div class="top-right">
+        <div id="prestige">Prestige: <span id="prestige-points">0</span> ✦</div>
+        <div id="save-status">Saved</div>
+      </div>
+    </header>
+
+    <main>
+      <section id="left">
+        <div id="click-area">
+          <button id="big-button">⚒️ FORGE</button>
+          <div id="click-info">
+            <div>Per Click: <span id="per-click">1</span></div>
+            <div>Coins: <span id="coins">0</span></div>
+            <div>CPS: <span id="cps">0</span></div>
+          </div>
+        </div>
+
+        <div id="actions">
+          <button id="prestige-btn" class="danger">Prestige</button>
+          <button id="reset-btn" class="danger small">Reset</button>
+          <button id="export-btn" class="small">Export</button>
+          <button id="import-btn" class="small">Import</button>
+        </div>
+
+        <div id="achievements">
+          <h3>Achievements</h3>
+          <div id="ach-list" class="grid"></div>
+        </div>
+      </section>
+
+      <section id="right">
+        <nav class="tabs">
+          <button class="tab active" data-tab="buildings">Buildings</button>
+          <button class="tab" data-tab="upgrades">Upgrades</button>
+          <button class="tab" data-tab="stats">Stats</button>
+        </nav>
+
+        <div class="tab-content" id="buildings-tab"></div>
+        <div class="tab-content hidden" id="upgrades-tab"></div>
+        <div class="tab-content hidden" id="stats-tab">
+          <div id="stats-list"></div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      Tip: Shift+Click to buy 10x. Game autosaves. Offline earnings credited on load.
+    </footer>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
