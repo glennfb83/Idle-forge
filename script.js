@@ -1,7 +1,6 @@
-// Regenerated script.js for Idle Forge
-// Cleaner structure, fixed bugs from previous version, safer state merges, no mutation during getters,
-// clearer upgrade handling, proper offline earnings, autosave, export/import, achievements, prestige.
-// Works with the provided index.html and styles.css.
+// Regenerated script.js for Idle Forge (notifications embedded in-game)
+// Changes: notifications now appear inside the #game container (so the whole game can be embedded).
+// The script creates an in-game notification container and shows dismissing toasts there.
 
 (() => {
   // --- Constants ---
@@ -58,6 +57,7 @@
   ACHIEVEMENT_TEMPLATES.forEach(a => DEFAULT_STATE.achievements[a.id] = { got: false });
 
   // --- DOM refs ---
+  const $gameRoot = document.getElementById("game");
   const $coins = document.getElementById("coins");
   const $perClick = document.getElementById("per-click");
   const $cps = document.getElementById("cps");
@@ -73,6 +73,37 @@
   const $exportBtn = document.getElementById("export-btn");
   const $importBtn = document.getElementById("import-btn");
   const $resetBtn = document.getElementById("reset-btn");
+
+  // --- Notification container (in-game) ---
+  let notifContainer = null;
+  function ensureNotifContainer() {
+    if (notifContainer) return notifContainer;
+    // make sure #game has position: relative so absolute notifications are positioned over it
+    if ($gameRoot) {
+      const currentPos = window.getComputedStyle($gameRoot).position;
+      if (currentPos === "static" || !currentPos) {
+        $gameRoot.style.position = "relative";
+      }
+    }
+
+    notifContainer = document.createElement("div");
+    notifContainer.id = "idleforge-notifications";
+    Object.assign(notifContainer.style, {
+      position: "absolute",
+      top: "12px",
+      right: "12px",
+      width: "320px",
+      maxWidth: "40%",
+      display: "flex",
+      flexDirection: "column",
+      gap: "8px",
+      zIndex: 9999,
+      pointerEvents: "none" // allow clicks to pass through except on the messages themselves
+    });
+    // keep it inside the game root (so embedding keeps everything together)
+    ($gameRoot || document.body).appendChild(notifContainer);
+    return notifContainer;
+  }
 
   // --- State (load or fresh) ---
   let state = loadSave() || deepCopy(DEFAULT_STATE);
@@ -296,8 +327,8 @@
     if (bought > 0) {
       tickRender();
       saveDebounced();
+      flashMessage(`Bought ${bought} ${template.name}${bought>1?"s":""}`);
     } else {
-      // optionally indicate can't afford
       flashMessage("Not enough coins");
     }
   }
@@ -319,7 +350,6 @@
       state.prestigePoints -= ut.cost;
       state.upgrades[id].bought = true;
     }
-    // no immediate mutation beyond marking bought; computeMultipliers will pick it up
     flashMessage(`Purchased: ${ut.name}`);
     tickRender();
     saveDebounced();
@@ -354,8 +384,6 @@
 
     // preserve prestigePoints and purchased prestige-upgrades (if any), but reset everything else
     const keepPrestige = state.prestigePoints;
-    const keepPrestigeUpgrades = {};
-    // keep upgrades that were bought and are prestige currency or explicitly flagged? For simplicity, keep nothing except prestigePoints.
     state = deepCopy(DEFAULT_STATE);
     state.prestigePoints = keepPrestige;
     state.lastTick = Date.now();
@@ -523,29 +551,107 @@
     }
   }
 
-  // --- UI helpers ---
-  function flashMessage(text) {
-    const el = document.createElement("div");
-    el.textContent = text;
-    Object.assign(el.style, {
-      position: "fixed",
-      right: "20px",
-      bottom: "20px",
-      background: "linear-gradient(90deg,#111827,#0f1724)",
-      padding: "10px 14px",
+  // --- In-game notification helper ---
+  // Shows short toasts inside the game area. Non-blocking; messages stack.
+  function flashMessage(text, opts = {}) {
+    const duration = typeof opts.duration === "number" ? opts.duration : 2600;
+    const container = ensureNotifContainer();
+    const msg = document.createElement("div");
+    msg.className = "idleforge-toast";
+    msg.setAttribute("role", "status");
+    Object.assign(msg.style, {
+      pointerEvents: "auto", // allow hover (pause) or click if desired
+      background: "linear-gradient(90deg,#0b1220,#071029)",
+      color: "#e6edf3",
+      padding: "10px 12px",
       borderRadius: "8px",
-      color: "#fff",
-      zIndex: 9999,
-      boxShadow: "0 6px 20px rgba(0,0,0,0.6)",
-      transition: "opacity 0.4s ease"
+      boxShadow: "0 6px 18px rgba(0,0,0,0.5)",
+      fontSize: "13px",
+      opacity: "0",
+      transform: "translateX(14px)",
+      transition: "opacity 240ms ease, transform 240ms ease",
+      maxWidth: "100%",
+      overflow: "hidden",
+      display: "flex",
+      alignItems: "center",
+      gap: "8px"
     });
-    document.body.appendChild(el);
-    setTimeout(() => el.style.opacity = "0", 2200);
-    setTimeout(() => el.remove(), 2600);
+
+    // small accent dot or icon
+    const dot = document.createElement("div");
+    Object.assign(dot.style, {
+      width: "10px",
+      height: "10px",
+      borderRadius: "50%",
+      background: "#f59e0b",
+      flex: "0 0 auto"
+    });
+    msg.appendChild(dot);
+
+    const span = document.createElement("div");
+    span.style.flex = "1 1 auto";
+    span.textContent = text;
+    msg.appendChild(span);
+
+    // optional close button (user can dismiss early)
+    const close = document.createElement("button");
+    close.innerHTML = "✕";
+    Object.assign(close.style, {
+      background: "transparent",
+      border: "none",
+      color: "#9ca3af",
+      cursor: "pointer",
+      fontSize: "12px",
+      flex: "0 0 auto",
+      marginLeft: "6px"
+    });
+    close.addEventListener("click", () => {
+      removeMsg(msg);
+    });
+    msg.appendChild(close);
+
+    // hover to pause removal
+    let removed = false;
+    let timeoutId = null;
+    function removeMsg(el) {
+      if (removed) return;
+      removed = true;
+      el.style.opacity = "0";
+      el.style.transform = "translateX(14px)";
+      setTimeout(() => {
+        try { el.remove(); } catch (e) {}
+      }, 260);
+    }
+
+    msg.addEventListener("mouseenter", () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+      msg.style.opacity = "1";
+      msg.style.transform = "translateX(0)";
+    });
+    msg.addEventListener("mouseleave", () => {
+      if (!removed) {
+        timeoutId = setTimeout(() => removeMsg(msg), Math.max(600, duration));
+      }
+    });
+
+    container.appendChild(msg);
+    // animate in
+    requestAnimationFrame(() => {
+      msg.style.opacity = "1";
+      msg.style.transform = "translateX(0)";
+    });
+
+    timeoutId = setTimeout(() => removeMsg(msg), duration);
   }
 
   // --- Init ---
   function init() {
+    // create notif container early (so any early toasts show inside game)
+    ensureNotifContainer();
+
     // UI initial render
     renderAll();
     handleOfflineOnLoad();
